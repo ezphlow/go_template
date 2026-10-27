@@ -1,0 +1,19 @@
+---
+description: Standard ezphlow Go service layout, lint hooks, and env prefix.
+alwaysApply: true
+---
+
+# Go service layout
+
+This repo is the layout all ezphlow Go services should match.
+
+- Entrypoint: `cmd/<name>/main.go` (thin: load config, start server, handle signals)
+- Private code: `internal/<pkg>/` — config, HTTP, domain. Do not add a root `main.go`.
+- Public library code only: `pkg/` (omit if unused)
+- Env prefix: `APP_*` (`APP_ADDR`, `APP_LOG_LEVEL`, `APP_SHUTDOWN_TIMEOUT`)
+- Health: `GET /healthz` (live), `GET /readyz` (ready)
+- Lint: `make lint` (golangci-lint). Git hooks: `make hooks` installs `.githooks` (`pre-commit` lint, `pre-push` test)
+- Tests live next to the package they cover (`foo_test.go`)
+- Do not commit `bin/`, coverage files, or secrets
+
+When migrating another repo onto this layout, follow `.cursor/skills/migrate-go-layout/SKILL.md`.

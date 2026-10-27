@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Run tests before push. Skip with SKIP_GIT_HOOKS=1 or --no-verify.
+set -euo pipefail
+
+if [[ "${SKIP_GIT_HOOKS:-}" == "1" ]]; then
+  echo "pre-push: skipped (SKIP_GIT_HOOKS=1)"
+  exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+if command -v go >/dev/null 2>&1; then
+  PATH="$(go env GOPATH)/bin:/usr/local/go/bin:${PATH}"
+else
+  PATH="${HOME}/go/bin:/usr/local/go/bin:${PATH}"
+fi
+export PATH
+
+echo "pre-push: go test ./..."
+go test ./... -race -count=1 -timeout 60s

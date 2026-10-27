@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Lint staged Go files before commit. Skip with SKIP_GIT_HOOKS=1 or --no-verify.
+set -euo pipefail
+
+if [[ "${SKIP_GIT_HOOKS:-}" == "1" ]]; then
+  echo "pre-commit: skipped (SKIP_GIT_HOOKS=1)"
+  exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+# Git GUIs often have a thin PATH; pick up a typical Go install.
+if command -v go >/dev/null 2>&1; then
+  PATH="$(go env GOPATH)/bin:/usr/local/go/bin:${PATH}"
+else
+  PATH="${HOME}/go/bin:/usr/local/go/bin:${PATH}"
+fi
+export PATH
+
+files="$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.go$' || true)"
+if [[ -z "${files}" ]]; then
+  exit 0
+fi
+
+unformatted="$(gofmt -l ${files} || true)"
+if [[ -n "${unformatted}" ]]; then
+  echo "pre-commit: gofmt needed on:"
+  echo "${unformatted}"
+  echo "Run: gofmt -w ${unformatted}"
+  exit 1
+fi
+
+if ! command -v golangci-lint >/dev/null 2>&1; then
+  echo "pre-commit: golangci-lint is not installed."
+  echo "  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b \$(go env GOPATH)/bin v1.64.8"
+  exit 1
+fi
+
+# Lint the whole module so package-level issues still fail the commit.
+# New files must be on disk (they are, after git add).
+golangci-lint run ./...
