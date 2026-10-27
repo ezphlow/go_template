@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/ezphlow/go_template/internal/config"
+	"github.com/ezphlow/go_template/internal/hello"
 	"github.com/ezphlow/go_template/internal/server"
 )
 
@@ -29,8 +30,11 @@ func run() int {
 		Level: cfg.LogLevel,
 	}))
 	log = log.With("service", "go_template", "version", Version)
+	if cfg.Telemetry.Version == "" {
+		cfg.Telemetry.Version = Version
+	}
 
-	srv := server.New(cfg, log)
+	srv := server.New(cfg, log, hello.Service{})
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

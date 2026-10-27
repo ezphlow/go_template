@@ -10,6 +10,12 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("APP_ADDR", "")
 	t.Setenv("APP_SHUTDOWN_TIMEOUT", "")
 	t.Setenv("APP_LOG_LEVEL", "")
+	t.Setenv("APP_DD_ENABLED", "")
+	t.Setenv("DD_TRACE_ENABLED", "")
+	t.Setenv("APP_DD_SERVICE", "")
+	t.Setenv("DD_SERVICE", "")
+	t.Setenv("APP_DD_ENV", "")
+	t.Setenv("DD_ENV", "")
 
 	c, err := Load()
 	if err != nil {
@@ -24,12 +30,24 @@ func TestLoadDefaults(t *testing.T) {
 	if c.LogLevel != slog.LevelInfo {
 		t.Errorf("LogLevel = %v, want info", c.LogLevel)
 	}
+	if !c.Telemetry.Enabled {
+		t.Error("Telemetry.Enabled default = false, want true")
+	}
+	if c.Telemetry.Service != "go_template" {
+		t.Errorf("Telemetry.Service = %q, want go_template", c.Telemetry.Service)
+	}
+	if c.Telemetry.Env != "dev" {
+		t.Errorf("Telemetry.Env = %q, want dev", c.Telemetry.Env)
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
 	t.Setenv("APP_ADDR", ":9090")
 	t.Setenv("APP_SHUTDOWN_TIMEOUT", "2s")
 	t.Setenv("APP_LOG_LEVEL", "debug")
+	t.Setenv("APP_DD_ENABLED", "false")
+	t.Setenv("DD_SERVICE", "other")
+	t.Setenv("APP_DD_ENV", "prod")
 
 	c, err := Load()
 	if err != nil {
@@ -43,6 +61,15 @@ func TestLoadOverrides(t *testing.T) {
 	}
 	if c.LogLevel != slog.LevelDebug {
 		t.Errorf("LogLevel = %v, want debug", c.LogLevel)
+	}
+	if c.Telemetry.Enabled {
+		t.Error("Telemetry.Enabled = true, want false")
+	}
+	if c.Telemetry.Service != "other" {
+		t.Errorf("Telemetry.Service = %q, want other", c.Telemetry.Service)
+	}
+	if c.Telemetry.Env != "prod" {
+		t.Errorf("Telemetry.Env = %q, want prod", c.Telemetry.Env)
 	}
 }
 

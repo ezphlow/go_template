@@ -5,24 +5,30 @@ Sample Go HTTP service and the layout to copy (or migrate) other Golang repos on
 ```
 cmd/<name>/main.go     thin entrypoint
 internal/config        APP_* env
+internal/models        shared types + interfaces
+internal/hello         production implementations
+internal/mocks         test doubles (XxxFn stubs)
 internal/server        HTTP + graceful shutdown
 internal/health        /healthz, /readyz
-.githooks              pre-commit lint, pre-push test
-.golangci.yml          golangci-lint v2
+internal/telemetry     Datadog tracer (dd-trace-go v2)
+.githooks              post-commit lint, pre-push test
+.golangci.yml          golangci-lint
 .cursor/skills         migrate-go-layout skill
 ```
 
 ## Run
 
 ```sh
-make hooks    # once per clone: lint on commit, tests on push
+make hooks    # once per clone: lint after commit, tests on push
 make test
 make serve    # :8080  GET /healthz  GET /v1/hello?name=ez
 ```
 
 Env: `APP_ADDR` (default `:8080`), `APP_LOG_LEVEL` (`debug`/`info`/`warn`/`error`), `APP_SHUTDOWN_TIMEOUT` (default `10s`).
 
-Skip hooks: `SKIP_GIT_HOOKS=1` or `git commit --no-verify`.
+Datadog (started in `server.New`): `APP_DD_ENABLED` / `DD_TRACE_ENABLED` (default `true`), `APP_DD_SERVICE` / `DD_SERVICE` (default `go_template`), `APP_DD_ENV` / `DD_ENV` (default `dev`), `APP_DD_AGENT_ADDR` / `DD_AGENT_HOST` (default `localhost:8126`). Without an agent, traces are dropped. Tests construct `config.Config` with `Telemetry.Enabled` false.
+
+Skip hooks: `SKIP_GIT_HOOKS=1`. `git commit --no-verify` does **not** skip `post-commit`.
 
 ## New service from this repo
 
@@ -60,4 +66,4 @@ Audit a repo without changing it:
 | `make ci` | lint + test + build |
 | `make docker` | local image `go-template:local` |
 
-Requires [golangci-lint](https://golangci-lint.run/welcome/install/) v1.64.x on `$PATH` (Go 1.21+).
+Requires Go 1.26+ (for `dd-trace-go` v2) and [golangci-lint](https://golangci-lint.run/welcome/install/) v2.15.x on `$PATH`.

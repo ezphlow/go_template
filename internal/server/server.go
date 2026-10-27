@@ -8,25 +8,46 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
 	"github.com/ezphlow/go_template/internal/config"
 	"github.com/ezphlow/go_template/internal/health"
+	"github.com/ezphlow/go_template/internal/hello"
+	"github.com/ezphlow/go_template/internal/models"
+	"github.com/ezphlow/go_template/internal/telemetry"
 )
 
 // Server is the HTTP process: mux, middleware, and graceful shutdown.
 type Server struct {
-	cfg    config.Config
-	log    *slog.Logger
-	health *health.Checker
-	http   *http.Server
+	cfg     config.Config
+	log     *slog.Logger
+	health  *health.Checker
+	greeter models.Greeter
+	http    *http.Server
+	stopTel func()
 }
 
 // New wires routes and middleware. Call Run to listen.
-func New(cfg config.Config, log *slog.Logger) *Server {
+func New(cfg config.Config, log *slog.Logger, greeter models.Greeter) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
+	if greeter == nil {
+		greeter = hello.Service{}
+	}
+	if cfg.Telemetry.Version == "" {
+		cfg.Telemetry.Version = "dev"
+	}
+
 	h := health.New()
-	s := &Server{cfg: cfg, log: log, health: h}
+	s := &Server{cfg: cfg, log: log, health: h, greeter: greeter}
+
+	stopTel, err := telemetry.Start(cfg.Telemetry, log)
+	if err != nil {
+		log.Error("start datadog tracer", "err", err)
+		stopTel = func() {}
+	}
+	s.stopTel = stopTel
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Live)
@@ -35,7 +56,7 @@ func New(cfg config.Config, log *slog.Logger) *Server {
 
 	s.http = &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           s.withLogging(mux),
+		Handler:           telemetry.WrapHTTP(s.withLogging(mux), cfg.Telemetry),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	return s
@@ -62,23 +83,32 @@ func (s *Server) Run(ctx context.Context) error {
 		shutCtx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout)
 		defer cancel()
 		if err := s.http.Shutdown(shutCtx); err != nil {
+			s.stopTelemetry()
 			return err
 		}
+		s.stopTelemetry()
 		return <-errCh
 	case err := <-errCh:
+		s.stopTelemetry()
 		return err
+	}
+}
+
+func (s *Server) stopTelemetry() {
+	if s.stopTel != nil {
+		s.stopTel()
+		s.stopTel = nil
 	}
 }
 
 func (s *Server) hello(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
-	if name == "" {
-		name = "world"
-	}
+	span, _ := tracer.StartSpanFromContext(r.Context(), "hello.greet")
+	defer span.Finish()
+	span.SetTag("hello.name", name)
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"message": "hello, " + name,
-	})
+	_ = json.NewEncoder(w).Encode(s.greeter.Greet(name))
 }
 
 func (s *Server) withLogging(next http.Handler) http.Handler {

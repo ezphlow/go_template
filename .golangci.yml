@@ -1,27 +1,33 @@
+version: "2"
+
 run:
-  timeout: 3m
+  timeout: 5m
 
 linters:
+  default: standard
   enable:
     - dupl
     - exhaustive
     - gocognit
     - gocritic
-    - gofmt
-    - goimports
     - misspell
     - revive
     - thelper
     - unconvert
     - whitespace
-    - staticcheck
+  settings:
+    gocognit:
+      min-complexity: 20
+    revive:
+      rules:
+        - name: exported
+          disabled: true
 
-linters-settings:
-  goimports:
-    local-prefixes: github.com/ezphlow/go_template
-  gocognit:
-    min-complexity: 20
-  revive:
-    rules:
-      - name: exported
-        disabled: true
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/ezphlow/go_template

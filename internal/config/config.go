@@ -16,6 +16,16 @@ type Config struct {
 	Addr            string
 	ShutdownTimeout time.Duration
 	LogLevel        slog.Level
+	Telemetry       Telemetry
+}
+
+// Telemetry configures the Datadog tracer started with the HTTP server.
+type Telemetry struct {
+	Enabled   bool
+	Service   string
+	Env       string
+	Version   string
+	AgentAddr string
 }
 
 // Load reads APP_* environment variables and applies defaults.
@@ -42,6 +52,14 @@ func Load() (Config, error) {
 		c.LogLevel = level
 	}
 
+	c.Telemetry = Telemetry{
+		Enabled:   parseBool(firstEnv("APP_DD_ENABLED", "DD_TRACE_ENABLED"), true),
+		Service:   firstEnv("APP_DD_SERVICE", "DD_SERVICE", "go_template"),
+		Env:       firstEnv("APP_DD_ENV", "DD_ENV", "dev"),
+		Version:   firstEnv("APP_DD_VERSION", "DD_VERSION", ""),
+		AgentAddr: firstEnv("APP_DD_AGENT_ADDR", "DD_AGENT_HOST", ""),
+	}
+
 	return c, c.Validate()
 }
 
@@ -61,4 +79,28 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func firstEnv(keysAndFallback ...string) string {
+	if len(keysAndFallback) == 0 {
+		return ""
+	}
+	fallback := keysAndFallback[len(keysAndFallback)-1]
+	for _, key := range keysAndFallback[:len(keysAndFallback)-1] {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+	}
+	return fallback
+}
+
+func parseBool(v string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }

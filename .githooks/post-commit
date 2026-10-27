@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Lint after the commit is created. Does not undo the commit on failure.
+# Skip with SKIP_GIT_HOOKS=1 (git commit --no-verify does not skip post-commit).
+set -euo pipefail
+
+if [[ "${SKIP_GIT_HOOKS:-}" == "1" ]]; then
+  echo "post-commit: skipped (SKIP_GIT_HOOKS=1)"
+  exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+if command -v go >/dev/null 2>&1; then
+  PATH="$(go env GOPATH)/bin:/usr/local/go/bin:${PATH}"
+else
+  PATH="${HOME}/go/bin:/usr/local/go/bin:${PATH}"
+fi
+export PATH
+
+changed="$(git diff-tree --no-commit-id --name-only -r HEAD || true)"
+if ! echo "${changed}" | grep -Eq '\.go$|\.golangci\.ya?ml$|^go\.mod$'; then
+  exit 0
+fi
+
+echo "post-commit: linting..."
+
+go_files="$(echo "${changed}" | grep -E '\.go$' || true)"
+if [[ -n "${go_files}" ]]; then
+  # shellcheck disable=SC2086
+  unformatted="$(gofmt -l ${go_files} || true)"
+  if [[ -n "${unformatted}" ]]; then
+    echo "post-commit: gofmt needed on:"
+    echo "${unformatted}"
+    echo "The commit already exists. Fix with: gofmt -w ${unformatted}"
+    exit 1
+  fi
+fi
+
+if ! command -v golangci-lint >/dev/null 2>&1; then
+  echo "post-commit: golangci-lint is not installed."
+  echo "  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b \$(go env GOPATH)/bin v2.15.0"
+  exit 1
+fi
+
+if ! golangci-lint run ./...; then
+  echo "post-commit: lint failed. The commit was still created; fix and commit again."
+  exit 1
+fi

@@ -9,10 +9,13 @@ This repo is the layout all ezphlow Go services should match.
 
 - Entrypoint: `cmd/<name>/main.go` (thin: load config, start server, handle signals)
 - Private code: `internal/<pkg>/` — config, HTTP, domain. Do not add a root `main.go`.
+- Shared types/interfaces: `internal/models`. Behavior stays in its own package (`internal/hello`, …).
+- Test doubles: `internal/mocks` (hand-written `XxxFn` stubs). Do not put mocks in `models`.
 - Public library code only: `pkg/` (omit if unused)
 - Env prefix: `APP_*` (`APP_ADDR`, `APP_LOG_LEVEL`, `APP_SHUTDOWN_TIMEOUT`)
+- Datadog: `server.New` starts `internal/telemetry` (`dd-trace-go` v2 + HTTP wrap). `APP_DD_ENABLED` / `DD_TRACE_ENABLED` (default on), `DD_SERVICE` / `APP_DD_SERVICE`, `DD_ENV`, `DD_AGENT_HOST`
 - Health: `GET /healthz` (live), `GET /readyz` (ready)
-- Lint: `make lint` (golangci-lint). Git hooks: `make hooks` installs `.githooks` (`pre-commit` lint, `pre-push` test)
+- Lint: `make lint` (golangci-lint). Git hooks: `make hooks` installs `.githooks` (`post-commit` lint, `pre-push` test). `--no-verify` does not skip post-commit; use `SKIP_GIT_HOOKS=1`.
 - Tests live next to the package they cover (`foo_test.go`)
 - Do not commit `bin/`, coverage files, or secrets
 

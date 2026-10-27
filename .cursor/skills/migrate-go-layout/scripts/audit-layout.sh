@@ -53,10 +53,10 @@ else
   bad ".golangci.yml"
 fi
 
-if [[ -x "$root/.githooks/pre-commit" ]]; then
-  ok ".githooks/pre-commit (executable)"
+if [[ -x "$root/.githooks/post-commit" ]]; then
+  ok ".githooks/post-commit (executable)"
 else
-  bad ".githooks/pre-commit executable"
+  bad ".githooks/post-commit executable"
 fi
 
 if [[ -x "$root/.githooks/pre-push" ]]; then

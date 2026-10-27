@@ -5,16 +5,16 @@ CMD             := ./cmd/service
 GOPATH_BIN      := $(shell $(GO) env GOPATH)/bin
 export PATH := $(GOPATH_BIN):$(PATH)
 GOLANGCI_LINT   ?= golangci-lint
-GOLANGCI_VERSION ?= v1.64.8
+GOLANGCI_VERSION ?= v2.15.0
 
 .PHONY: all hooks hooks-uninstall lint lint-fast fmt test build serve tidy docker ci clean
 
 all: lint test build
 
-## Git hooks (lint on commit, tests on push)
+## Git hooks (lint after commit, tests on push)
 hooks:
 	git config core.hooksPath .githooks
-	chmod +x .githooks/pre-commit .githooks/pre-push
+	chmod +x .githooks/post-commit .githooks/pre-push
 	@echo "Installed git hooks via core.hooksPath=.githooks"
 
 hooks-uninstall:
@@ -29,7 +29,6 @@ lint:
 	}
 	$(GOLANGCI_LINT) run ./...
 
-# Faster path used by pre-commit when only a few files changed.
 lint-fast:
 	@command -v $(GOLANGCI_LINT) >/dev/null 2>&1 || { echo "golangci-lint required"; exit 1; }
 	$(GOLANGCI_LINT) run ./...

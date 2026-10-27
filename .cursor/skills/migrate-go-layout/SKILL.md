@@ -20,10 +20,12 @@ Target layout:
 ```
 cmd/<binary>/main.go
 internal/<pkg>/          # config, server, domain — never a root main.go
+internal/models          # shared types + interfaces
+internal/mocks           # hand-written XxxFn test doubles
 pkg/                     # only if the module is a public library
 Makefile                 # lint test build hooks
 .golangci.yml
-.githooks/pre-commit     # gofmt + golangci-lint
+.githooks/post-commit    # gofmt + golangci-lint (after commit)
 .githooks/pre-push       # go test -race
 .github/workflows/ci.yml
 .cursor/rules/go-service.mdc
@@ -48,7 +50,7 @@ Copy this checklist and tick as you go:
 
 In the target repo, collect:
 
-- `go.mod` module path and Go version (raise to **1.21+** if lower)
+- `go.mod` module path and Go version (raise to **1.26+** if lower; required by Datadog `dd-trace-go` v2)
 - Where `package main` / `func main` live (root, `cmd/`, `main.go` + sibling packages)
 - Existing Makefile / justfile / `.golangci.yml` / CI / git hooks
 - Env prefix and health routes (`/healthz` is the convention)
@@ -78,6 +80,8 @@ If the repo is already close (has `cmd/` + `internal/`), skip the move and only 
 - `git mv` when possible so history follows.
 - Root `main.go` → `cmd/<binary>/main.go`. Leave `main` thin: load config, construct server, signals, `os.Exit`.
 - Root-level library packages (`config`, `service`, `logger`, …) → `internal/<name>/`.
+- `entities/` or `models/` at repo root → `internal/models` (types + interfaces only).
+- `mock/` or `mocks/` at repo root → `internal/mocks` (do not generate into `models`).
 - Update import paths in the same change. Do not leave a transitional broken tree.
 - Do not vendor. Do not add dependencies the service does not already use.
 
@@ -89,7 +93,7 @@ Copy these from the template and substitute the **target module path** and **bin
 | --- | --- |
 | `Makefile` | `MODULE`, `BINARY`, `CMD` |
 | `.golangci.yml` | `local-prefixes` |
-| `.githooks/pre-commit`, `.githooks/pre-push` | none (generic) |
+| `.githooks/post-commit`, `.githooks/pre-push` | none (generic) |
 | `.gitignore` | merge; keep their extras |
 | `.editorconfig` | copy if missing |
 | `.github/workflows/ci.yml` | copy if they have no Go CI |
@@ -99,7 +103,7 @@ Copy these from the template and substitute the **target module path** and **bin
 
 If they already have a Makefile, **add** `lint`, `test`, `hooks`, `fmt` targets instead of overwriting custom deploy/docker targets.
 
-If they already have `.golangci.yml`, enable the template's linter set (drop deprecated `ifshort`) and set `local-prefixes` to their module. This layout ships golangci-lint **v1** config (v1.64.x).
+If they already have `.golangci.yml`, enable the template's linter set (drop deprecated `ifshort`) and set `local-prefixes` to their module. This layout ships golangci-lint **v2** config (`version: "2"`, v2.15.x).
 
 ### 5. Module and imports
 
@@ -114,7 +118,7 @@ make hooks
 # git config core.hooksPath .githooks
 ```
 
-Confirm `.githooks/pre-commit` and `pre-push` are executable. Do not use husky.
+Confirm `.githooks/post-commit` and `pre-push` are executable. Do not use husky. `--no-verify` does not skip post-commit; use `SKIP_GIT_HOOKS=1`.
 
 ### 7. Verify
 
@@ -124,7 +128,7 @@ make lint
 make test
 ```
 
-If `golangci-lint` is missing, install v1.64.8 (see template README) and re-run. Do not claim the migration is done while lint or tests fail.
+If `golangci-lint` is missing, install v2.15.0 (see template README) and re-run. Do not claim the migration is done while lint or tests fail.
 
 If a check cannot run (no Go toolchain), say so and leave the files in place.
 
